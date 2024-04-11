@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <link rel="icon" href="https://www.factorio.com/static/img/favicon.ico" type="image/x-icon">
+    <base target="_blank" />
+    <title>Factorio Blueprint Helper v1.3 by KonohaScarlet 2024/4/7</title>
+    <script>
+        var Base64 = {
+            // private property
+            _keyStr: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
+            // public method for encoding
+            encode: function (input) {
+                var output = "";
+                var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+                var i = 0;
+
+                while (i < input.length) {
+
+                    chr1 = input.charCodeAt(i++);
+                    chr2 = input.charCodeAt(i++);
+                    chr3 = input.charCodeAt(i++);
+
+                    enc1 = chr1 >> 2;
+                    enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+                    enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+                    enc4 = chr3 & 63;
+
+                    if (isNaN(chr2)) {
+                        enc3 = enc4 = 64;
+                    } else if (isNaN(chr3)) {
+                        enc4 = 64;
+                    }
+
+                    output = output +
+                        this._keyStr.charAt(enc1) + this._keyStr.charAt(enc2) +
+                        this._keyStr.charAt(enc3) + this._keyStr.charAt(enc4);
+
+                }
+
+                return output;
+            },
+
+            encodeU: function (input) {
+                var output = "";
+                var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+                var i = 0;
+
+                while (i < input.length) {
+
+                    chr1 = input[i++];
+                    chr2 = input[i++];
+                    chr3 = input[i++];
+
+                    enc1 = chr1 >> 2;
+                    enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+                    enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+                    enc4 = chr3 & 63;
+
+                    if (isNaN(chr2)) {
+                        enc3 = enc4 = 64;
+                    } else if (isNaN(chr3)) {
+                        enc4 = 64;
+                    }
+
+                    output = output +
+                        this._keyStr.charAt(enc1) + this._keyStr.charAt(enc2) +
+                        this._keyStr.charAt(enc3) + this._keyStr.charAt(enc4);
+
+                }
+
+                return output;
+            },
+
+            // public method for decoding
+            decode: function (input) {
+                var output = "";
+                var chr1, chr2, chr3;
+                var enc1, enc2, enc3, enc4;
+                var i = 0;
+
+                input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+
+                while (i < input.length) {
+
+                    enc1 = this._keyStr.indexOf(input.charAt(i++));
+                    enc2 = this._keyStr.indexOf(input.charAt(i++));
+                    enc3 = this._keyStr.indexOf(input.charAt(i++));
+                    enc4 = this._keyStr.indexOf(input.charAt(i++));
+
+                    chr1 = (enc1 << 2) | (enc2 >> 4);
+                    chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+                    chr3 = ((enc3 & 3) << 6) | enc4;
+
+                    output = output + String.fromCharCode(chr1);
+
+                    if (enc3 != 64) {
+                        output = output + String.fromCharCode(chr2);
+                    }
+                    if (enc4 != 64) {
+                        output = output + String.fromCharCode(chr3);
+                    }
+
+                }
+
+                return output;
+
+            }
+
+        }
+
+        Array.prototype.last = function () {
+            return this[this.length - 1];
+        }
+
+        function copyToClipboard(text) {
+            if (text.length) {
+                // 创建一个临时的textarea元素
+                var textarea = document.createElement("textarea");
+                // 将文本赋值给textarea的值
+                textarea.value = text;
+                // 将textarea元素添加到DOM中
+                document.body.appendChild(textarea);
+                // 选中textarea中的文本
+                textarea.select();
+                // 尝试执行复制操作
+                document.execCommand('copy');
+                // 移除临时的textarea元素
+                document.body.removeChild(textarea);
+
+                alert(`Copied text with length ${text.length}`);
+            } else {
+                alert('Nothing to copy');
+            }
+        }
+
+        function decodeBlueprint(b64Data) {
+            var binary = atob(b64Data.substring(1));
+            var bytes = new Uint8Array(binary.length);
+            for (var i in bytes) bytes[i] = binary.charCodeAt(i);
+
+            var unzip = pako.inflate(bytes);
+            return JSON.parse(new TextDecoder("utf-8").decode(unzip));
+            // var array = new Uint16Array(unzip);
+            // var res = '';
+            // var chunk = 8 * 1024;
+            // var i;
+            // for (i = 0; i < array.length / chunk; i++)
+            //     res += String.fromCharCode.apply(null, array.slice(i * chunk, (i + 1) * chunk));
+            // res += String.fromCharCode.apply(null, array.slice(i * chunk));
+            // return JSON.parse(res);
+        }
+
+        function encodeBlueprint(dict) {
+            let enc = new TextEncoder("utf-8").encode(JSON.stringify(dict).replace(/\s/g, ""));
+            let zip = pako.deflate(enc, { level: 9 })
+            return '0' + Base64.encodeU(zip);
+        }
+
+        // bp dict => str->int
+        function blueprint2materials(dict) {
+            const result = {};
+            for (const entity of dict.blueprint.entities) {
+                result[entity.name] = (result[entity.name] ?? 0) + 1;
+                for (const init in entity.items)
+                    result[init] = (result[init] ?? 0) + entity.items[init];
+            }
+
+            if (result['curved-rail']) {
+                result['rail'] = (result['rail'] ?? 0) + result['curved-rail'];
+                delete result['curved-rail'];
+            }
+
+            if (result['straight-rail']) {
+                result['rail'] = (result['rail'] ?? 0) + result['straight-rail'];
+                delete result['straight-rail'];
+            }
+
+            return result;
+        }
+
+        // str->int => bp dict
+        function materials2constants(dict) {
+            const entities = [];
+            let i = 0;
+
+            for (const name in dict) {
+                const count = dict[name];
+                const entity_number = ~~(i / 20) + 1;
+                const index = i % 20 + 1;
+                if (index === 1)
+                    entities.push({
+                        "entity_number": entity_number,
+                        "name": "constant-combinator",
+                        "position": {
+                            "x": entity_number + 0.5,
+                            "y": 0.5
+                        },
+                        "control_behavior": {
+                            "filters": []
+                        }
+                    });
+
+                entities.last().control_behavior.filters.push({
+                    "signal": {
+                        "type": "item",
+                        "name": name
+                    },
+                    "count": count,
+                    "index": index
+                });
+
+                i++;
+            }
+
+            return {
+                "blueprint": {
+                    "icons": [
+                        {
+                            "signal": {
+                                "type": "item",
+                                "name": "constant-combinator"
+                            },
+                            "index": 1
+                        }
+                    ],
+                    "entities": entities,
+                    "item": "blueprint",
+                    "version": 281479278493696
+                }
+            };
+        }
+
+    </script>
+    <style>
+        textarea {
+            width: 300px;
+            height: 300px;
+        }
+
+        #button-container {
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <textarea id="in"></textarea>
+
+    <textarea id="out" disabled></textarea>
+
+    <div id="button-container">
+
+        <button onclick="copyToClipboard($('#out').val())">
+            复制输出内容
+        </button>
+
+        <button onclick="$('#out').val(JSON.stringify(decodeBlueprint($('#in').val()), null, 4))">
+            蓝图转JSON
+        </button>
+
+        <button
+            onclick="$('#out').val(encodeBlueprint(JSON.parse($('#in').val())))">
+            JSON转压缩串
+        </button>
+
+        <button
+            onclick="$('#out').val(encodeBlueprint(materials2constants(blueprint2materials(decodeBlueprint($('#in').val())))))">
+            蓝图转常量蓝图(原料需求)
+        </button>
+
+        <!-- <button onclick="$('#out').val(encodeBlueprint(materials2constants(blueprint2materials(decodeBlueprint($('#in').val())))))">
+            红绿线反转
+        </button> -->
+
+    </div>
+
+    <p>Factorio Blueprint Helper v1.3 by KonohaScarlet 2024/4/7</p>
+</body>
+
+</html>
